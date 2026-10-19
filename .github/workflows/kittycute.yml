@@ -20,12 +20,30 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Java 25
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "25"
-          cache: gradle
-          cache-dependency-path: KittyGens-26.3-Project/KittyGens-26.3/**/*.gradle*
+
+      - name: Find Gradle project
+        id: gradle
+        shell: bash
+        run: |
+          BUILD_FILE=$(find . -type f \( \
+            -name "build.gradle" -o \
+            -name "build.gradle.kts" \
+          \) -not -path "*/.gradle/*" | head -n 1)
+
+          if [ -z "$BUILD_FILE" ]; then
+            echo "ERROR: No Gradle build file found in the repository."
+            echo "Repository files:"
+            find . -maxdepth 5 -type f | head -n 200
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$BUILD_FILE")
+          echo "dir=${PROJECT_DIR#./}" >> "$GITHUB_OUTPUT"
+          echo "Found Gradle build: $BUILD_FILE"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -33,12 +51,12 @@ jobs:
           gradle-version: "9.1.0"
 
       - name: Build plugin
-        working-directory: KittyGens-26.3-Project/KittyGens-26.3
+        working-directory: ${{ steps.gradle.outputs.dir }}
         run: gradle --no-daemon clean build
 
       - name: Upload plugin JAR
         uses: actions/upload-artifact@v4
         with:
           name: KittyGens-JAR
-          path: KittyGens-26.3-Project/KittyGens-26.3/build/libs/*.jar
+          path: "**/build/libs/*.jar"
           if-no-files-found: error
